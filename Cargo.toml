@@ -1,0 +1,134 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/wallet-core",
+    "crates/app",
+    "crates/desktop",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+# The Mochimo Cryptocurrency Engine License Agreement, version 1.0, the same
+# licence as the wallet library. It has no SPDX identifier, hence
+# `license-file` rather than `license`, and the clarification in deny.toml.
+license-file = "LICENSE.md"
+# The application ships as signed packages, never as crates.
+publish = false
+repository = "https://github.com/adequatelimited/Tawara-wallet"
+
+[workspace.dependencies]
+# The wallet library, pinned by full commit hash. Upgrading it is a change to
+# `rev` and nothing else: no `[patch]`, no vendored copy, no fork.
+# `crates/wallet-core/tests/policy.rs` requires a 40-hex `rev` and no patch,
+# replacement or path override, and deny.toml refuses `raw-backend` in the
+# resolved graph.
+#
+# `native` plus `mesh-https` for TLS (rustls with `ring`, the one dependency
+# that compiles C). `raw-backend` is the library's test-only feature and stays
+# off, so the only path to a signature is `Keystore::sign_spend` behind an
+# `AdvanceReceipt`.
+mochimo-crypto = { git = "https://github.com/adequatelimited/mcm-rust-cli-windows", rev = "12b1fee9afde5fdf049a97c4f320515cd9655c38", default-features = false, features = ["native", "mesh-https"] }
+
+# The toolkit: iced 0.14 from the mobile fork, pinned by the full hash of its
+# release tag `v0.14.1-mobile.4`. The fork is iced's `0.14` branch plus
+# Android and iOS support for iced_winit (including `on_lifecycle`, the hook
+# the mobile shells lock the wallet from), UIKit window scenes, the system
+# clipboard and safe-area and keyboard insets on phones. It vendors winit
+# 0.30.13 and dpi 0.1.1, and drops the theme detection crate, so Linux reports
+# no system light or dark mode; the application sets its own theme everywhere.
+#
+# Every iced crate comes from this one commit, so the build holds one copy of
+# each. Moving iced is a change to `rev` on both lines below, only to a
+# release tag of the fork (`v*-mobile.*`), by its full hash.
+# `crates/wallet-core/tests/policy.rs` enforces this, and deny.toml admits
+# this git source beside the library's.
+#
+# Features are listed explicitly so what ships does not follow iced's
+# defaults: `wgpu` and `tiny-skia` (the pure-Rust software renderer), `crisp`,
+# `web-colors`, `thread-pool`, and on Linux `x11` and `wayland`. The fork's
+# phone-only defaults stay off. Additionally:
+# - `canvas` draws the line icons from path data (far fewer crates than `svg`);
+# - `advanced` exposes the headless renderer to the screenshot example;
+# - `qr_code` draws the code on Receive (adds the `qrcode` crate only);
+# - `image-without-codecs` draws the Android scanner's camera preview from
+#   RGBA pixels. `image` itself is not listed: its codecs bring a licence
+#   deny.toml does not admit.
+iced = { git = "https://github.com/patricksmithlaravel/iced_mobile", rev = "7325ccd5823a118d46f023e91010d27f07b6dd90", default-features = false, features = [
+    "wgpu",
+    "tiny-skia",
+    "canvas",
+    "advanced",
+    "qr_code",
+    "image-without-codecs",
+    "crisp",
+    "web-colors",
+    "thread-pool",
+    "x11",
+    "wayland",
+] }
+
+# The local time zone for displayed dates. `clock` alone: chrono reads the
+# system's zone itself and never calls the C library's localtime, which is
+# unsound beside other threads.
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
+
+# Dev-dependencies of `tawara-app` for the screenshot example only.
+# `iced_runtime` (same hash as `iced`) provides `UserInterface`, which iced
+# does not re-export; `png` writes and reads the images.
+iced_runtime = { git = "https://github.com/patricksmithlaravel/iced_mobile", rev = "7325ccd5823a118d46f023e91010d27f07b6dd90" }
+png = "0.18"
+
+# The desktop folder dialog for choosing a store location. Desktop targets
+# only; phones keep the store in the app's own folder. Uses each system's own
+# dialog: IFileOpenDialog on Windows, NSOpenPanel on macOS, and the desktop
+# portal over D-Bus on Linux (`xdg-portal`). `wayland` is off: the portal
+# needs no Wayland client.
+rfd = { version = "=0.17.2", default-features = false, features = ["xdg-portal"] }
+
+tawara-wallet-core = { path = "crates/wallet-core" }
+tawara-app = { path = "crates/app" }
+
+# wallet-core's direct dependencies beside the library. Both are already in
+# the library's graph at these versions, so they add no crate to any build.
+#
+# `zeroize` scrubs buffers holding a password or recovery phrase on their way
+# to the library.
+zeroize = "1.9.0"
+# `getrandom` 0.2: the operating system's generator, used when creating and
+# opening a store. The 0.2 line is the one `ring` uses; on Windows it calls
+# `BCryptGenRandom` with the system-preferred generator.
+getrandom = "0.2.17"
+# Dev-dependency: the fake node in wallet-core's tests reads the library's JSON.
+serde_json = "1.0.151"
+
+# Dev-dependencies of `crates/wallet-core/tests/policy.rs` only.
+syn = { version = "2", default-features = false, features = ["full", "parsing", "printing", "visit", "visit-mut", "clone-impls"] }
+proc-macro2 = { version = "1", default-features = false }
+quote = { version = "1", default-features = false }
+toml = "0.9"
+
+# The release profile is a security property of the library, and cargo reads
+# profiles only from the root of the workspace being built, so the library's
+# own `[profile.release]` must be restated here.
+#
+# `panic = "unwind"`: every scrub of key material runs through `Drop`. Under
+# `panic = "abort"` destructors do not run, so the master seed would stay in
+# memory, and SIGABRT can write a core file.
+#
+# `overflow-checks = true`: otherwise arithmetic on a balance would wrap
+# silently in release while panicking in debug.
+#
+# `crates/wallet-core/tests/policy.rs` fails if either line changes.
+[profile.release]
+panic = "unwind"
+overflow-checks = true
+
+# Optimise the key derivation in debug and test builds. Each store a test
+# creates or opens runs Argon2id at `Kdf::RECOMMENDED`, which takes seconds
+# unoptimised. The derivation's result is unchanged.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3

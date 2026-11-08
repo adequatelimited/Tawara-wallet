@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Tawara
+Comment=Mochimo wallet
+Exec=tawara-desktop
+Icon=com.adequatelimited.tawara
+Terminal=false
+Categories=Office;Finance;

@@ -1,0 +1,10 @@
+# Check out every text file with LF line endings on every platform. The policy
+# tests in crates/wallet-core/tests/policy.rs read sources and manifests as
+# bytes, so a CRLF checkout would differ from the commit.
+* text=auto eol=lf
+
+# Font binaries are kept byte for byte as published (crates/app/fonts/SOURCES.md
+# records each SHA-256). Their licence texts are ordinary LF text.
+*.ttf -text
+*.otf -text
+*.woff2 -text

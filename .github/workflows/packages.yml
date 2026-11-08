@@ -1,0 +1,294 @@
+# Builds the desktop packages for every commit, checks them and keeps them as
+# workflow artifacts:
+#   Windows  Tawara-X.Y.Z-x86_64-setup.exe, unsigned
+#   Linux    tawara-desktop_X.Y.Z_amd64.deb and Tawara-X.Y.Z-x86_64.AppImage
+#   macOS    Tawara-X.Y.Z.dmg, a universal app, ad-hoc signed, not notarised
+#
+# A tag vX.Y.Z publishes the packages as a GitHub release with one SHA256SUMS
+# file, its detached GPG signature SHA256SUMS.asc, and the public key
+# packaging/tawara-release-key.asc from the tagged commit. The signing key is a
+# secret of the "release" environment, which only v* tags can use.
+#
+# Every hour the job also looks at the library's main branch. When it has a
+# commit that no earlier run built, the packages are built against that commit
+# and kept as artifacts named "upstream-<commit>". Those builds are never
+# released; a release always uses the commit Cargo.lock pins.
+
+name: packages
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      library_rev:
+        description: "Build against this library commit instead of the pinned one"
+        required: false
+        default: ""
+
+permissions: {}
+
+concurrency:
+  group: packages-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  LIBRARY_URL: https://github.com/adequatelimited/mcm-rust-cli-windows
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+    outputs:
+      build: ${{ steps.plan.outputs.build }}
+      library_rev: ${{ steps.plan.outputs.library_rev }}
+      label: ${{ steps.plan.outputs.label }}
+    steps:
+      - name: Decide what to build
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          INPUT_REV: ${{ github.event.inputs.library_rev }}
+        run: |
+          set -eu
+          rev=
+          case "$EVENT" in
+            schedule)
+              rev=$(git ls-remote "$LIBRARY_URL" refs/heads/main | cut -f1)
+              [ -n "$rev" ] || { echo "the library's main branch was not found" >&2; exit 1; }
+              pinned=$(curl -fsSL "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/Cargo.toml" \
+                | grep -oE 'mcm-rust-cli-windows", rev = "[0-9a-f]{40}"' | grep -oE '[0-9a-f]{40}')
+              if [ "$rev" = "$pinned" ]; then
+                echo "the library's main branch is the pinned commit; nothing to build"
+                echo "build=false" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              seen=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=tawara-linux-upstream-${rev:0:12}" --jq .total_count)
+              if [ "$seen" != 0 ]; then
+                echo "library commit $rev was already built"
+                echo "build=false" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              ;;
+            workflow_dispatch)
+              rev=$INPUT_REV
+              ;;
+          esac
+          if [ -n "$rev" ]; then
+            printf '%s' "$rev" | grep -qE '^[0-9a-f]{40}$' || { echo "library_rev must be a 40-digit commit id" >&2; exit 1; }
+            label="upstream-${rev:0:12}"
+          else
+            label="${GITHUB_SHA:0:12}"
+          fi
+          echo "build=true" >> "$GITHUB_OUTPUT"
+          echo "library_rev=$rev" >> "$GITHUB_OUTPUT"
+          echo "label=$label" >> "$GITHUB_OUTPUT"
+
+  package:
+    name: package, ${{ matrix.os }}
+    needs: plan
+    if: ${{ needs.plan.outputs.build == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+          - os: ubuntu-24.04
+            platform: linux
+          - os: macos-26
+            platform: macos
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: always
+      LIBRARY_REV: ${{ needs.plan.outputs.library_rev }}
+    steps:
+      - name: Clone the commit under the user's profile
+        run: |
+          base=$HOME
+          if [ -n "${USERPROFILE:-}" ]; then base=$(cygpath -u "$USERPROFILE"); fi
+          git clone --quiet --no-checkout "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "$base/tawara"
+          git -C "$base/tawara" fetch --quiet origin "$GITHUB_SHA"
+          git -C "$base/tawara" checkout --quiet --detach "$GITHUB_SHA"
+          echo "TAWARA=$base/tawara" >> "$GITHUB_ENV"
+
+      - name: Refuse CRLF line endings
+        run: |
+          cd "$TAWARA"
+          if git ls-files --eol | grep 'w/crlf'; then
+            echo "The files above were checked out with CRLF line endings." >&2
+            exit 1
+          fi
+
+      - name: Toolchain
+        run: |
+          cd "$TAWARA"
+          rustup toolchain install --no-self-update
+          case "${{ matrix.platform }}" in
+            macos) rustup target add x86_64-apple-darwin aarch64-apple-darwin ;;
+            windows) rustup target add x86_64-pc-windows-msvc ;;
+          esac
+          echo "commit $(git rev-parse HEAD)"
+          rustc -vV
+
+      - name: Use the library commit under test
+        if: ${{ env.LIBRARY_REV != '' }}
+        run: |
+          cd "$TAWARA"
+          sed -i.bak -E "s|(mcm-rust-cli-windows\", rev = \")[0-9a-f]{40}|\1$LIBRARY_REV|" Cargo.toml
+          rm Cargo.toml.bak
+          grep -q "rev = \"$LIBRARY_REV\"" Cargo.toml
+          cargo update -p mochimo-crypto
+          echo "built against library commit $LIBRARY_REV"
+
+      - name: Windows installer
+        if: ${{ matrix.platform == 'windows' }}
+        run: |
+          cd "$TAWARA"
+          TAWARA_WIN_ICO="$TAWARA/packaging/icons/tawara.ico" bash packaging/windows.sh --unsigned
+          bash packaging/check.sh windows-exe target/x86_64-pc-windows-msvc/release/tawara-desktop.exe
+          bash packaging/check.sh windows target/package/windows
+
+      - name: Linux packages
+        if: ${{ matrix.platform == 'linux' }}
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends imagemagick xvfb xauth mesa-vulkan-drivers libvulkan1
+          cd "$TAWARA"
+          TAWARA_ICON_PNG="$TAWARA/packaging/icons/tawara.png" \
+          TAWARA_DEB_MAINTAINER='Adequate Systems HK Limited <support@adequatelimited.com>' \
+            bash packaging/linux.sh
+          bash packaging/check.sh linux target/package/linux
+
+      - name: Linux, the .deb installs, starts and is removed
+        if: ${{ matrix.platform == 'linux' }}
+        run: |
+          cd "$TAWARA"
+          deb=$(ls target/package/linux/tawara-desktop_*_amd64.deb)
+          sudo apt-get install -y -q "$PWD/$deb"
+          LIVENESS_SECONDS=20 bash ci/liveness.sh /usr/bin/tawara-desktop
+          sudo apt-get remove -y -q tawara-desktop
+
+      - name: Linux, the AppImage starts once extracted
+        if: ${{ matrix.platform == 'linux' }}
+        run: |
+          cd "$TAWARA"
+          appimage=$(ls "$TAWARA"/target/package/linux/Tawara-*-x86_64.AppImage)
+          extract="$RUNNER_TEMP/appimage-extract"
+          mkdir -p "$extract"
+          (cd "$extract" && "$appimage" --appimage-extract >/dev/null)
+          LIVENESS_SECONDS=20 bash ci/liveness.sh "$extract/squashfs-root/usr/bin/tawara-desktop"
+
+      - name: macOS disk image
+        if: ${{ matrix.platform == 'macos' }}
+        run: |
+          cd "$TAWARA"
+          TAWARA_ICON="$TAWARA/packaging/icons/tawara.icns" bash packaging/macos.sh --unsigned --build-number 1
+          bash packaging/check.sh macos target/package/macos
+          LIVENESS_SECONDS=10 bash ci/liveness.sh "$TAWARA/target/package/macos/Tawara.app/Contents/MacOS/tawara-desktop"
+
+      - name: Collect the packages
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          cd "$TAWARA/target/package/${{ matrix.platform }}"
+          case "${{ matrix.platform }}" in
+            windows) cp Tawara-*-setup.exe "$RUNNER_TEMP/out/" ;;
+            linux) cp tawara-desktop_*.deb Tawara-*.AppImage "$RUNNER_TEMP/out/" ;;
+            macos) cp Tawara-*.dmg "$RUNNER_TEMP/out/" ;;
+          esac
+          cp SHA256SUMS "$RUNNER_TEMP/out/SHA256SUMS-${{ matrix.platform }}"
+          ls -l "$RUNNER_TEMP/out"
+
+      - name: Keep the packages
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tawara-${{ matrix.platform }}-${{ needs.plan.outputs.label }}
+          path: ${{ runner.temp }}/out/
+          retention-days: 30
+          if-no-files-found: error
+
+  release:
+    needs: [plan, package]
+    if: ${{ startsWith(github.ref, 'refs/tags/v') && needs.plan.outputs.library_rev == '' }}
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - name: Fetch the packages
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: tawara-*-${{ needs.plan.outputs.label }}
+          path: ${{ runner.temp }}/in
+          merge-multiple: true
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          GPG_PRIVATE_KEY: ${{ secrets.TAWARA_GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.TAWARA_GPG_PASSPHRASE }}
+        run: |
+          set -eu
+          version=${TAG#v}
+          version_toml=$(curl -fsSL "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/Cargo.toml" \
+            | awk '/^\[/ { p = ($0 == "[workspace.package]") } p && /^version/ { split($0, a, "\""); print a[2]; exit }')
+          [ "$version" = "$version_toml" ] || { echo "tag $TAG does not match version $version_toml in Cargo.toml" >&2; exit 1; }
+          mkdir "$RUNNER_TEMP/rel"
+          cd "$RUNNER_TEMP/in"
+          cp "Tawara-$version-x86_64-setup.exe" "tawara-desktop_${version}_amd64.deb" "Tawara-$version-x86_64.AppImage"             "Tawara-$version.dmg" "$RUNNER_TEMP/rel/"
+          cd "$RUNNER_TEMP/rel"
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+          # Sign with the secret key, which must be the key the tagged commit publishes.
+          [ -n "$GPG_PRIVATE_KEY" ] && [ -n "$GPG_PASSPHRASE" ] || { echo "the release environment has no signing key" >&2; exit 1; }
+          curl -fsSL "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/packaging/tawara-release-key.asc" \
+            -o tawara-release-key.asc
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          mkdir -m 700 "$GNUPGHOME"
+          printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --quiet --import
+          fpr=$(gpg --batch --with-colons --show-keys tawara-release-key.asc | awk -F: '/^fpr/ { print $10; exit }')
+          [ -n "$fpr" ] || { echo "tawara-release-key.asc holds no key" >&2; exit 1; }
+          gpg --batch --list-secret-keys "$fpr" >/dev/null 2>&1 \
+            || { echo "the signing key is not the published key $fpr" >&2; exit 1; }
+          printf '%s' "$GPG_PASSPHRASE" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 \
+            --local-user "$fpr" --armor --detach-sign --output SHA256SUMS.asc SHA256SUMS
+          verify="$RUNNER_TEMP/verify"
+          mkdir -m 700 "$verify"
+          GNUPGHOME="$verify" gpg --batch --quiet --import tawara-release-key.asc
+          GNUPGHOME="$verify" gpg --batch --verify SHA256SUMS.asc SHA256SUMS
+          gpgconf --kill gpg-agent
+          rm -rf "$GNUPGHOME"
+          spaced=$(printf '%s' "$fpr" | sed 's/..../& /g; s/ $//')
+          cat > "$RUNNER_TEMP/notes.md" <<NOTES
+          Tawara $version, the Mochimo wallet for the desktop.
+
+          - Windows: \`Tawara-$version-x86_64-setup.exe\`, a per-user installer.
+          - macOS 11 or later, Apple silicon and Intel: \`Tawara-$version.dmg\`. Drag Tawara to Applications.
+          - Linux: \`tawara-desktop_${version}_amd64.deb\` for Debian and Ubuntu, or \`Tawara-$version-x86_64.AppImage\`.
+          - Android: see the Tawara-mobile releases.
+
+          The Windows and macOS packages are not yet code-signed. On Windows, SmartScreen may warn on first start: choose "More info", then "Run anyway". On macOS, open Tawara once with Control-click and "Open", or allow it in System Settings, Privacy & Security.
+
+          Every download is covered by \`SHA256SUMS\`, which is signed by the Tawara release key, fingerprint \`$spaced\`. To check a download:
+
+              gpg --import tawara-release-key.asc
+              gpg --verify SHA256SUMS.asc SHA256SUMS
+              sha256sum --ignore-missing -c SHA256SUMS
+
+          gpg must report a good signature from that fingerprint.
+
+          Tawara is maintained, owned and published by Adequate Systems HK Limited. Contact: support@adequatelimited.com
+          NOTES
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "Tawara $version" \
+            --notes-file "$RUNNER_TEMP/notes.md" --verify-tag ./*

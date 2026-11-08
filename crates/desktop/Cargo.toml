@@ -1,0 +1,12 @@
+[package]
+name = "tawara-desktop"
+authors = ["Adequate Systems HK Limited"]
+description = "The Tawara entry point for Windows, macOS and Linux."
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+tawara-app.workspace = true

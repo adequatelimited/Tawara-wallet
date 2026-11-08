@@ -1,0 +1,690 @@
+# cargo-about configuration for THIRD-PARTY-NOTICES.txt, used by ci/notices.sh.
+# The notices are the licence texts of the crates in Cargo.lock that the
+# desktop application is built from.
+#
+# Crates are counted with every feature enabled, as in deny.toml's `[graph]`
+# table, so a feature added later cannot hide a crate. Build dependencies are
+# included because build script output can reach the executable;
+# development-only crates are excluded. Mobile targets are not listed.
+#
+# Every desktop target is listed (x86_64 and aarch64 for Windows MSVC, Linux
+# GNU and macOS): a crate built only for an omitted target would ship without
+# its licence text.
+targets = [
+    "x86_64-pc-windows-msvc",
+    "aarch64-pc-windows-msvc",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+]
+ignore-build-dependencies = false
+ignore-dev-dependencies = true
+ignore-transitive-dependencies = false
+
+# The accepted licences are deny.toml's allow list. A crate under any other
+# licence is an error. Two per-crate exceptions follow: the Mochimo agreement
+# for Tawara's crates and the library, and OFL-1.1 for tawara-app's fonts.
+# crates/wallet-core/tests/policy.rs checks this list against deny.toml and the
+# exceptions against a fixed table.
+# ci/notices.sh runs the generator with `--fail`, so a crate whose licence
+# cannot be determined is also an error. A clarification whose file cannot be
+# read, or whose checksum does not match, is only a warning; the byte
+# comparison in `ci/notices.sh --check` catches the resulting change.
+accepted = [
+    "MIT",
+    "Apache-2.0",
+    "ISC",
+    "BSD-3-Clause",
+    "Unicode-3.0",
+    "CDLA-Permissive-2.0",
+    "BSD-2-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "Zlib",
+]
+
+# chrono keeps its MIT and Apache-2.0 texts in one file. The generator's
+# `chrono` workaround splits that file, so that each licence has its own text.
+workarounds = ["chrono"]
+
+# There is no `[private]` table: its `ignore = true` would drop this
+# repository's crates and the library, which are `publish = false`. Each is
+# named below with its licence instead.
+
+# The Mochimo agreement has no SPDX identifier; its crates name it
+# `LicenseRef-Mochimo-Engine-1.0`, as deny.toml does. cargo-about 0.9.2 does
+# not print the text of a `LicenseRef-` licence, so ci/notices.sh appends
+# LICENSE.md itself, and the generator's three warnings about these crates are
+# expected. Each clarification pins LICENSE.md by SHA-256.
+
+[mochimo-crypto]
+accepted = ["LicenseRef-Mochimo-Engine-1.0"]
+
+[mochimo-crypto.clarify]
+license = "LicenseRef-Mochimo-Engine-1.0"
+
+[[mochimo-crypto.clarify.files]]
+path = "../../LICENSE.md"
+license = "LicenseRef-Mochimo-Engine-1.0"
+checksum = "f958e87e09453252d1eedecd3da93c0d89140ab0420635ac56817442f39dbd17"
+
+[tawara-wallet-core]
+accepted = ["LicenseRef-Mochimo-Engine-1.0"]
+
+[tawara-wallet-core.clarify]
+license = "LicenseRef-Mochimo-Engine-1.0"
+
+[[tawara-wallet-core.clarify.files]]
+path = "../../LICENSE.md"
+license = "LicenseRef-Mochimo-Engine-1.0"
+checksum = "f958e87e09453252d1eedecd3da93c0d89140ab0420635ac56817442f39dbd17"
+
+[tawara-desktop]
+accepted = ["LicenseRef-Mochimo-Engine-1.0"]
+
+[tawara-desktop.clarify]
+license = "LicenseRef-Mochimo-Engine-1.0"
+
+[[tawara-desktop.clarify.files]]
+path = "../../LICENSE.md"
+license = "LicenseRef-Mochimo-Engine-1.0"
+checksum = "f958e87e09453252d1eedecd3da93c0d89140ab0420635ac56817442f39dbd17"
+
+# Bundled fonts. tawara-app ships three font families under the SIL Open Font
+# License 1.1, with their licence texts beside them (crates/app/fonts/SOURCES.md).
+# The crate's code is under the Mochimo agreement, which ci/notices.sh appends,
+# so this entry covers the fonts only. OFL-1.1 is accepted for this crate alone.
+[tawara-app]
+accepted = ["OFL-1.1"]
+
+[tawara-app.clarify]
+license = "OFL-1.1"
+
+[[tawara-app.clarify.files]]
+path = "fonts/IBMPlexMono-OFL.txt"
+license = "OFL-1.1"
+checksum = "37784b44044a4ffd9256702b7c0982c37e5c8887ba90c6dca0479aea93dc898d"
+
+[[tawara-app.clarify.files]]
+path = "fonts/Montserrat-OFL.txt"
+license = "OFL-1.1"
+checksum = "8b7141c03fa4f8d44e6345d5d4931709290f0f67875e452e95ac1fd3a027802e"
+
+[[tawara-app.clarify.files]]
+path = "fonts/Poppins-OFL.txt"
+license = "OFL-1.1"
+checksum = "6be04893d770899a015649c7aa3b582f871b272f8747a92b78b17c3e5c8b2573"
+
+# The iced fork, at the commit the workspace pins. Its crates carry no licence
+# file, so each is clarified to the commit's root LICENSE (MIT, naming the
+# copyright holders) instead of the template MIT text. winit and dpi are the
+# fork's vendored copies in vendor/winit, under Apache-2.0. Checksums are
+# SHA-256.
+
+[iced.clarify]
+license = "MIT"
+
+[[iced.clarify.files]]
+path = "LICENSE"
+license = "MIT"
+checksum = "fc9086ba4eba4b77e4c603906362742bc3715ffa2c7810c6074fe7780d3a0398"
+
+[iced_core.clarify]
+license = "MIT"
+
+[[iced_core.clarify.files]]
+path = "../LICENSE"
+license = "MIT"
+checksum = "fc9086ba4eba4b77e4c603906362742bc3715ffa2c7810c6074fe7780d3a0398"
+
+[iced_debug.clarify]
+license = "MIT"
+
+[[iced_debug.clarify.files]]
+path = "../LICENSE"
+license = "MIT"
+checksum = "fc9086ba4eba4b77e4c603906362742bc3715ffa2c7810c6074fe7780d3a0398"
+
+[iced_futures.clarify]
+license = "MIT"
+
+[[iced_futures.clarify.files]]
+path = "../LICENSE"
+license = "MIT"
+checksum = "fc9086ba4eba4b77e4c603906362742bc3715ffa2c7810c6074fe7780d3a0398"
+
+[iced_graphics.clarify]
+license = "MIT"
+
+[[iced_graphics.clarify.files]]
+path = "../LICENSE"
+license = "MIT"
+checksum = "fc9086ba4eba4b77e4c603906362742bc3715ffa2c7810c6074fe7780d3a0398"
+
+[iced_program.clarify]
+license = "MIT"
+
+[[iced_program.clarify.files]]
+path = "../LICENSE"
+license = "MIT"
+checksum = "fc9086ba4eba4b77e4c603906362742bc3715ffa2c7810c6074fe7780d3a0398"
+
+[iced_renderer.clarify]
+license = "MIT"
+
+[[iced_renderer.clarify.files]]
+path = "../LICENSE"
+license = "MIT"
+checksum = "fc9086ba4eba4b77e4c603906362742bc3715ffa2c7810c6074fe7780d3a0398"
+
+[iced_runtime.clarify]
+license = "MIT"
+
+[[iced_runtime.clarify.files]]
+path = "../LICENSE"
+license = "MIT"
+checksum = "fc9086ba4eba4b77e4c603906362742bc3715ffa2c7810c6074fe7780d3a0398"
+
+[iced_tiny_skia.clarify]
+license = "MIT"
+
+[[iced_tiny_skia.clarify.files]]
+path = "../LICENSE"
+license = "MIT"
+checksum = "fc9086ba4eba4b77e4c603906362742bc3715ffa2c7810c6074fe7780d3a0398"
+
+[iced_wgpu.clarify]
+license = "MIT"
+
+[[iced_wgpu.clarify.files]]
+path = "../LICENSE"
+license = "MIT"
+checksum = "fc9086ba4eba4b77e4c603906362742bc3715ffa2c7810c6074fe7780d3a0398"
+
+[iced_widget.clarify]
+license = "MIT"
+
+[[iced_widget.clarify.files]]
+path = "../LICENSE"
+license = "MIT"
+checksum = "fc9086ba4eba4b77e4c603906362742bc3715ffa2c7810c6074fe7780d3a0398"
+
+[iced_winit.clarify]
+license = "MIT"
+
+[[iced_winit.clarify.files]]
+path = "../LICENSE"
+license = "MIT"
+checksum = "fc9086ba4eba4b77e4c603906362742bc3715ffa2c7810c6074fe7780d3a0398"
+
+[winit.clarify]
+license = "Apache-2.0"
+
+[[winit.clarify.files]]
+path = "LICENSE"
+license = "Apache-2.0"
+checksum = "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a"
+
+[dpi.clarify]
+license = "Apache-2.0"
+
+[[dpi.clarify.files]]
+path = "LICENSE"
+license = "Apache-2.0"
+checksum = "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a"
+
+# ring 0.17.14. Its Cargo.toml says `Apache-2.0 AND ISC`, but its own code is
+# ISC and code taken from BoringSSL, once_cell and fiat-crypto carries
+# Apache-2.0, BSD-3-Clause and MIT. The root LICENSE only points to those
+# files, so each is named here by checksum. The generator's `ring` workaround
+# has no effect on 0.17.14 and is not listed.
+
+[ring.clarify]
+license = "ISC AND Apache-2.0 AND BSD-3-Clause AND MIT"
+
+[[ring.clarify.files]]
+path = "LICENSE-other-bits"
+license = "ISC"
+checksum = "f025ccfb7dfb6bdfedc75ca0f67acc69e6fb4998143d834f7c2f38a29989680f"
+
+[[ring.clarify.files]]
+path = "LICENSE-BoringSSL"
+license = "Apache-2.0 AND BSD-3-Clause"
+checksum = "005fc765ddc5115da796cca915baa9557abae13ff35e0a47c47affc56f6c414d"
+
+[[ring.clarify.files]]
+path = "src/polyfill/once_cell/LICENSE-APACHE"
+license = "Apache-2.0"
+checksum = "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+
+[[ring.clarify.files]]
+path = "src/polyfill/once_cell/LICENSE-MIT"
+license = "MIT"
+checksum = "6ee2ed6c77710de911761acd5fc1ad1da00f476beb1a7ef27e78c2d1858deafc"
+
+[[ring.clarify.files]]
+path = "third_party/fiat/LICENSE"
+license = "Apache-2.0"
+checksum = "9eacbcb81be660840c714a560a9d65ba07913db98dd4baf969f78dd499fdd60f"
+
+# Copyright holders. The MIT, ISC and BSD licences require the copyright notice
+# to accompany the software, so each such crate is given the text naming its
+# holder wherever the crate publishes one. Where cargo-about finds no licence
+# file under a name it recognises, it prints the standard text with a template
+# copyright line ("<year> <copyright holders>"). The entries below supply the
+# crate's own text:
+#
+# - `files`: a file the package carries under a name cargo-about does not read,
+#   or a different file from the one it would pick;
+# - `git`: a file in the crate's repository at the published commit (from the
+#   package's `.cargo_vcs_info.json`), fetched from raw.githubusercontent.com on
+#   every run. A failed fetch only warns, and `ci/notices.sh --check` then fails.
+#
+# Every file is pinned by SHA-256. A name covers every version of the crate in
+# the graph; a clarification that fails for one version leaves that version to
+# its packaged files, with a warning.
+#
+# Crates that publish their licence without a copyright line are printed as
+# published. Fifteen Objective-C crate versions publish no licence text at all;
+# they get the standard text with the template line removed by ci/notices.sh,
+# and crates/wallet-core/tests/policy.rs lists them. The template names each
+# crate's authors from its metadata and says they are not necessarily the
+# holders.
+
+# Microsoft's windows crates carry their texts as `license-mit` and
+# `license-apache-2.0`, which cargo-about does not read. The MIT one names
+# Microsoft Corporation. Every version in the graph has the same two files.
+
+[windows.clarify]
+license = "MIT OR Apache-2.0"
+
+[[windows.clarify.files]]
+path = "license-mit"
+license = "MIT"
+checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+
+[[windows.clarify.files]]
+path = "license-apache-2.0"
+license = "Apache-2.0"
+checksum = "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
+
+[windows-core.clarify]
+license = "MIT OR Apache-2.0"
+
+[[windows-core.clarify.files]]
+path = "license-mit"
+license = "MIT"
+checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+
+[[windows-core.clarify.files]]
+path = "license-apache-2.0"
+license = "Apache-2.0"
+checksum = "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
+
+[windows-implement.clarify]
+license = "MIT OR Apache-2.0"
+
+[[windows-implement.clarify.files]]
+path = "license-mit"
+license = "MIT"
+checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+
+[[windows-implement.clarify.files]]
+path = "license-apache-2.0"
+license = "Apache-2.0"
+checksum = "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
+
+[windows-interface.clarify]
+license = "MIT OR Apache-2.0"
+
+[[windows-interface.clarify.files]]
+path = "license-mit"
+license = "MIT"
+checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+
+[[windows-interface.clarify.files]]
+path = "license-apache-2.0"
+license = "Apache-2.0"
+checksum = "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
+
+[windows-link.clarify]
+license = "MIT OR Apache-2.0"
+
+[[windows-link.clarify.files]]
+path = "license-mit"
+license = "MIT"
+checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+
+[[windows-link.clarify.files]]
+path = "license-apache-2.0"
+license = "Apache-2.0"
+checksum = "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
+
+[windows-result.clarify]
+license = "MIT OR Apache-2.0"
+
+[[windows-result.clarify.files]]
+path = "license-mit"
+license = "MIT"
+checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+
+[[windows-result.clarify.files]]
+path = "license-apache-2.0"
+license = "Apache-2.0"
+checksum = "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
+
+[windows-strings.clarify]
+license = "MIT OR Apache-2.0"
+
+[[windows-strings.clarify.files]]
+path = "license-mit"
+license = "MIT"
+checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+
+[[windows-strings.clarify.files]]
+path = "license-apache-2.0"
+license = "Apache-2.0"
+checksum = "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
+
+[windows-sys.clarify]
+license = "MIT OR Apache-2.0"
+
+[[windows-sys.clarify.files]]
+path = "license-mit"
+license = "MIT"
+checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+
+[[windows-sys.clarify.files]]
+path = "license-apache-2.0"
+license = "Apache-2.0"
+checksum = "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
+
+[windows-targets.clarify]
+license = "MIT OR Apache-2.0"
+
+[[windows-targets.clarify.files]]
+path = "license-mit"
+license = "MIT"
+checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+
+[[windows-targets.clarify.files]]
+path = "license-apache-2.0"
+license = "Apache-2.0"
+checksum = "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
+
+[windows_aarch64_msvc.clarify]
+license = "MIT OR Apache-2.0"
+
+[[windows_aarch64_msvc.clarify.files]]
+path = "license-mit"
+license = "MIT"
+checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+
+[[windows_aarch64_msvc.clarify.files]]
+path = "license-apache-2.0"
+license = "Apache-2.0"
+checksum = "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
+
+[windows_x86_64_gnu.clarify]
+license = "MIT OR Apache-2.0"
+
+[[windows_x86_64_gnu.clarify.files]]
+path = "license-mit"
+license = "MIT"
+checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+
+[[windows_x86_64_gnu.clarify.files]]
+path = "license-apache-2.0"
+license = "Apache-2.0"
+checksum = "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
+
+[windows_x86_64_msvc.clarify]
+license = "MIT OR Apache-2.0"
+
+[[windows_x86_64_msvc.clarify.files]]
+path = "license-mit"
+license = "MIT"
+checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+
+[[windows_x86_64_msvc.clarify.files]]
+path = "license-apache-2.0"
+license = "Apache-2.0"
+checksum = "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
+
+# libm keeps the MIT text and its sources' copyright lines in one LICENSE.txt,
+# which cargo-about does not match to a licence.
+
+[libm.clarify]
+license = "MIT"
+
+[[libm.clarify.files]]
+path = "LICENSE.txt"
+license = "MIT"
+checksum = "3823dda7cf046602f4b4e77ec8e227863dc4736037cc85bb33d9f19febe16bb7"
+
+# wayland-protocols-plasma carries KDE's protocol files with KDE's REUSE
+# licence templates (plasma-wayland-protocols/LICENSES/MIT.txt is the template
+# MIT text). The crate's own licence is its root LICENSE.txt.
+
+[wayland-protocols-plasma.clarify]
+license = "MIT"
+
+[[wayland-protocols-plasma.clarify.files]]
+path = "LICENSE.txt"
+license = "MIT"
+checksum = "1cb6f4dee8c649f175736380495f0af0c753c87f22d50931692968bb24bf2161"
+
+# cfg_aliases ships NOTICES.md, which cargo-about reads as a second MIT text.
+# The crate's licence is its LICENSE.
+
+[cfg_aliases.clarify]
+license = "MIT"
+
+[[cfg_aliases.clarify.files]]
+path = "LICENSE"
+license = "MIT"
+checksum = "31b94860253d8ec7b4529f51901044d3b459d6292d996504a36b1bae3a36a812"
+
+# Packages with no licence file, whose repository has one at the published
+# commit: lyon, profiling, svg_fmt, gpu-alloc and gpu-descriptor. Each is
+# `MIT OR Apache-2.0`, and both texts are pinned where both exist.
+
+[lyon.clarify]
+license = "MIT OR Apache-2.0"
+
+[[lyon.clarify.git]]
+path = "LICENSE-MIT"
+license = "MIT"
+checksum = "80f275e90d799911ed3830a7f242a2ef5a4ade2092fe0aa07bfb2d2cf2f2b95e"
+
+[[lyon.clarify.git]]
+path = "LICENSE-APACHE"
+license = "Apache-2.0"
+checksum = "216486f29671a4262efe32af6d84a75bef398127f8c5f369b5c8305983887a06"
+
+[lyon_algorithms.clarify]
+license = "MIT OR Apache-2.0"
+
+[[lyon_algorithms.clarify.git]]
+path = "LICENSE-MIT"
+license = "MIT"
+checksum = "80f275e90d799911ed3830a7f242a2ef5a4ade2092fe0aa07bfb2d2cf2f2b95e"
+
+[[lyon_algorithms.clarify.git]]
+path = "LICENSE-APACHE"
+license = "Apache-2.0"
+checksum = "216486f29671a4262efe32af6d84a75bef398127f8c5f369b5c8305983887a06"
+
+[lyon_geom.clarify]
+license = "MIT OR Apache-2.0"
+
+[[lyon_geom.clarify.git]]
+path = "LICENSE-MIT"
+license = "MIT"
+checksum = "80f275e90d799911ed3830a7f242a2ef5a4ade2092fe0aa07bfb2d2cf2f2b95e"
+
+[[lyon_geom.clarify.git]]
+path = "LICENSE-APACHE"
+license = "Apache-2.0"
+checksum = "216486f29671a4262efe32af6d84a75bef398127f8c5f369b5c8305983887a06"
+
+[lyon_path.clarify]
+license = "MIT OR Apache-2.0"
+
+[[lyon_path.clarify.git]]
+path = "LICENSE-MIT"
+license = "MIT"
+checksum = "80f275e90d799911ed3830a7f242a2ef5a4ade2092fe0aa07bfb2d2cf2f2b95e"
+
+[[lyon_path.clarify.git]]
+path = "LICENSE-APACHE"
+license = "Apache-2.0"
+checksum = "216486f29671a4262efe32af6d84a75bef398127f8c5f369b5c8305983887a06"
+
+[lyon_tessellation.clarify]
+license = "MIT OR Apache-2.0"
+
+[[lyon_tessellation.clarify.git]]
+path = "LICENSE-MIT"
+license = "MIT"
+checksum = "80f275e90d799911ed3830a7f242a2ef5a4ade2092fe0aa07bfb2d2cf2f2b95e"
+
+[[lyon_tessellation.clarify.git]]
+path = "LICENSE-APACHE"
+license = "Apache-2.0"
+checksum = "216486f29671a4262efe32af6d84a75bef398127f8c5f369b5c8305983887a06"
+
+[profiling.clarify]
+license = "MIT OR Apache-2.0"
+
+[[profiling.clarify.git]]
+path = "LICENSE-MIT"
+license = "MIT"
+checksum = "c8167fdeeed46d3f244d3f85c5bf998ce889343691c32be2c61a8bc4b5c08333"
+
+[[profiling.clarify.git]]
+path = "LICENSE-APACHE"
+license = "Apache-2.0"
+checksum = "10d30a673cd5e9349bdc02aeb48f14b3386d27d0da32df8f0a555d4aa16aa551"
+
+[svg_fmt.clarify]
+license = "MIT OR Apache-2.0"
+
+[[svg_fmt.clarify.git]]
+path = "LICENSE"
+license = "MIT"
+checksum = "7e98bed7f100747aaae7d82ab94fbe6b76fd6b84b09a3aaa413bff8196d0fbb1"
+
+[gpu-alloc.clarify]
+license = "MIT OR Apache-2.0"
+
+[[gpu-alloc.clarify.git]]
+path = "license/MIT"
+license = "MIT"
+checksum = "f774bf68151714985324d90adbd59e8f271b7ba518608d871b6ba16464692879"
+
+[[gpu-alloc.clarify.git]]
+path = "license/APACHE"
+license = "Apache-2.0"
+checksum = "58317934bf818c379e4215fad7e8dfb6812edff32c9557b8b039343f69711e08"
+
+[gpu-alloc-types.clarify]
+license = "MIT OR Apache-2.0"
+
+[[gpu-alloc-types.clarify.git]]
+path = "license/MIT"
+license = "MIT"
+checksum = "f774bf68151714985324d90adbd59e8f271b7ba518608d871b6ba16464692879"
+
+[[gpu-alloc-types.clarify.git]]
+path = "license/APACHE"
+license = "Apache-2.0"
+checksum = "58317934bf818c379e4215fad7e8dfb6812edff32c9557b8b039343f69711e08"
+
+[gpu-descriptor.clarify]
+license = "MIT OR Apache-2.0"
+
+[[gpu-descriptor.clarify.git]]
+path = "license/MIT"
+license = "MIT"
+checksum = "5226e27d5fbc683db56c52853cdb9d15b69abadb525a60f95c862c2dbd77cdc8"
+
+[[gpu-descriptor.clarify.git]]
+path = "license/APACHE"
+license = "Apache-2.0"
+checksum = "6bec8c944a6d4251be50ac86bb4ca360bcce5aea472505dee2800e160bf1cdbf"
+
+[gpu-descriptor-types.clarify]
+license = "MIT OR Apache-2.0"
+
+[[gpu-descriptor-types.clarify.git]]
+path = "license/MIT"
+license = "MIT"
+checksum = "5226e27d5fbc683db56c52853cdb9d15b69abadb525a60f95c862c2dbd77cdc8"
+
+[[gpu-descriptor-types.clarify.git]]
+path = "license/APACHE"
+license = "Apache-2.0"
+checksum = "6bec8c944a6d4251be50ac86bb4ca360bcce5aea472505dee2800e160bf1cdbf"
+
+# malloc_buf 0.0.6 was published without a licence file or
+# `.cargo_vcs_info.json`. Its repository added the MIT LICENSE, stating the
+# published licence, in commit d9a3e539, which is named here.
+
+[malloc_buf.clarify]
+license = "MIT"
+override-git-commit = "d9a3e539642bd90e07df458d226b19cdfa606863"
+
+[[malloc_buf.clarify.git]]
+path = "LICENSE"
+license = "MIT"
+checksum = "aced7b57e474a63edb5a724954222bf7659c01ceef0e648a03af799582991db7"
+
+# The objc2 repository's crates. Up to objc2 0.5 the repository kept an MIT
+# LICENSE.txt, which the versions published from those commits take. From
+# objc2 0.6 it keeps LICENSE.md, with no licence text, so the clarification
+# fails (one warning each) for block2 0.6.2, dispatch2 0.3.1, objc2 0.6.4,
+# objc2-app-kit 0.3.2 and objc2-foundation 0.3.2. These keep the standard
+# text, as do objc2-encode 4.1.0, the other objc2 0.3 framework crates,
+# block 0.1.6 and dispatch 0.2.0.
+
+[block2.clarify]
+license = "MIT"
+
+[[block2.clarify.git]]
+path = "LICENSE.txt"
+license = "MIT"
+checksum = "e353f37b12aefbb9f9b29490e837cfee05d9bda70804b3562839a3285c1df1e5"
+
+[objc2.clarify]
+license = "MIT"
+
+[[objc2.clarify.git]]
+path = "LICENSE.txt"
+license = "MIT"
+checksum = "e353f37b12aefbb9f9b29490e837cfee05d9bda70804b3562839a3285c1df1e5"
+
+[objc-sys.clarify]
+license = "MIT"
+
+[[objc-sys.clarify.git]]
+path = "LICENSE.txt"
+license = "MIT"
+checksum = "e353f37b12aefbb9f9b29490e837cfee05d9bda70804b3562839a3285c1df1e5"
+
+[objc2-app-kit.clarify]
+license = "MIT"
+
+[[objc2-app-kit.clarify.git]]
+path = "LICENSE.txt"
+license = "MIT"
+checksum = "e353f37b12aefbb9f9b29490e837cfee05d9bda70804b3562839a3285c1df1e5"
+
+[objc2-foundation.clarify]
+license = "MIT"
+
+[[objc2-foundation.clarify.git]]
+path = "LICENSE.txt"
+license = "MIT"
+checksum = "e353f37b12aefbb9f9b29490e837cfee05d9bda70804b3562839a3285c1df1e5"

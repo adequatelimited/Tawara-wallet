@@ -1,0 +1,28 @@
+[package]
+name = "tawara-app"
+authors = ["Adequate Systems HK Limited"]
+description = "The Tawara iced application: state, messages, screens and theme. Talks to tawara-wallet-core only."
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+# This crate never depends on mochimo-crypto: every library call goes through
+# tawara-wallet-core's worker. `tawara-wallet-core`'s `tests/policy.rs` checks
+# this manifest.
+
+[dependencies]
+chrono.workspace = true
+iced.workspace = true
+tawara-wallet-core.workspace = true
+# Wipes the password copy kept for device unlock when it is dropped.
+zeroize.workspace = true
+
+# The folder dialog behind Browse, on the desktop only.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+rfd.workspace = true
+
+[dev-dependencies]
+iced_runtime.workspace = true
+png.workspace = true

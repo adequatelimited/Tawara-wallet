@@ -1,0 +1,71 @@
+THIRD-PARTY NOTICES
+===================
+
+Tawara includes the third-party software listed in this file. Each entry names
+the crates that use a licence, and gives the text of that licence as the crates
+publish it, with the copyright lines it carries.
+
+Each crate is listed with its version, its repository and the authors its
+metadata names, so that it can be traced to the people who wrote it. The
+authors are not necessarily the copyright holders. The holders are the ones
+the licence text names.
+
+Most texts come from the crate's package. Where the package has no licence
+file, or keeps it under a name the generator does not read, the text is taken
+from that file or from the crate's repository, at the commit the package was
+published from. Some crates publish their licence with no copyright line, in
+the package and in the repository alike; their text is given as they publish
+it.
+
+Where a crate carries no text of its licence, the licence's standard text is
+given, and the entry says so. A few crates under the MIT licence publish no
+text of it anywhere; for them the standard text is given without the template
+line it leaves for the copyright holder.
+
+Tawara's own crates, and the Mochimo Cryptocurrency Engine library, are licensed
+under the Mochimo Cryptocurrency Engine License Agreement, version 1.0. It has no
+SPDX identifier, so the generator does not reproduce its text. The text is
+appended at the end of this file, from LICENSE.md.
+
+The entry for tawara-app under the SIL Open Font License 1.1 covers the three
+font families the application bundles: IBM Plex Mono, Montserrat and Poppins.
+
+This file is generated from the dependency lock file by cargo-about. Do not edit
+it by hand.
+
+Overview
+--------
+{{#each overview}}
+{{{name}}} ({{{id}}}): used by {{count}}
+{{/each}}
+
+Licences
+--------
+{{#each licenses}}
+
+================================================================================
+{{{name}}} ({{{id}}})
+
+Used by:
+{{#each used_by}}
+  {{{crate.name}}} {{{crate.version}}}{{#if crate.repository}} {{{crate.repository}}}{{/if}}{{#if crate.authors}} (authors: {{#each crate.authors}}{{{this}}}{{#unless @last}}; {{/unless}}{{/each}}){{else}} (its metadata names no authors){{/if}}
+{{/each}}
+{{#unless source_path}}
+
+The crates above carry no text of this licence in their package, so this is
+the licence's standard text.{{#if (eq id "MIT")}} They publish none in their repository either,
+and the template line that the standard text leaves for the copyright holder is
+left out.{{/if}}
+{{/unless}}
+
+{{{text}}}
+{{/each}}
+
+================================================================================
+Mochimo Cryptocurrency Engine License Agreement, version 1.0
+(LicenseRef-Mochimo-Engine-1.0)
+
+Used by: the Mochimo library and Tawara's own crates.
+
+The text follows, as LICENSE.md.
+

@@ -1,0 +1,106 @@
+# Build, lint, test and document the workspace on Linux, macOS and Windows.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check, ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Clone the commit under the user's profile
+        # The library refuses stores whose folder grants other accounts, which a
+        # folder outside the profile can on Windows.
+        run: |
+          base=$HOME
+          if [ -n "${USERPROFILE:-}" ]; then base=$(cygpath -u "$USERPROFILE"); fi
+          git clone --quiet --no-checkout "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "$base/tawara"
+          git -C "$base/tawara" fetch --quiet origin "$GITHUB_SHA"
+          git -C "$base/tawara" checkout --quiet --detach "$GITHUB_SHA"
+          echo "TAWARA=$base/tawara" >> "$GITHUB_ENV"
+
+      - name: Refuse CRLF line endings
+        run: |
+          cd "$TAWARA"
+          if git ls-files --eol | grep 'w/crlf'; then
+            echo "The files above were checked out with CRLF line endings." >&2
+            exit 1
+          fi
+
+      - name: Toolchain
+        id: toolchain
+        run: |
+          cd "$TAWARA"
+          rustup toolchain install --no-self-update
+          echo "commit $(git rev-parse HEAD)"
+          rustc -vV
+          cargo -V
+
+      - name: cargo build
+        id: build
+        run: cd "$TAWARA" && cargo build --workspace --locked
+
+      - name: Linux display and Vulkan packages
+        id: packages
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && runner.os == 'Linux' }}
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends xvfb xauth mesa-vulkan-drivers libvulkan1 \
+            libxkbcommon-x11-0 libxcursor1 libxrandr2 libxi6 libx11-xcb1
+
+      - name: The desktop app starts on wgpu and on tiny-skia
+        if: ${{ !cancelled() && steps.packages.outcome == 'success' }}
+        run: cd "$TAWARA" && bash ci/liveness.sh "$TAWARA/target/debug/tawara-desktop"
+
+      - name: cargo clippy
+        if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
+        run: cd "$TAWARA" && cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: cargo test
+        if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
+        run: cd "$TAWARA" && cargo test --workspace --locked
+
+      - name: cargo doc
+        if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cd "$TAWARA" && cargo doc --workspace --no-deps --locked
+
+      - name: cargo fmt
+        if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
+        run: cd "$TAWARA" && cargo fmt --all --check
+
+      - name: cargo deny
+        if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
+        run: |
+          cd "$TAWARA"
+          cargo install --quiet --locked cargo-deny --version 0.20.2
+          cargo deny --locked check
+
+      - name: Third-party notices match Cargo.lock
+        if: ${{ !cancelled() && steps.toolchain.outcome == 'success' && runner.os == 'Linux' }}
+        run: |
+          cd "$TAWARA"
+          cargo install --quiet --locked --features cli cargo-about --version 0.9.2
+          bash ci/notices.sh --check

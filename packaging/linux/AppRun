@@ -1,0 +1,6 @@
+#!/bin/sh
+# Copyright (c) 2026 Adequate Systems HK Limited
+# Licensed under the Mochimo Cryptocurrency Engine License Agreement 1.0; see LICENSE.md.
+# AppImage entry point: runs the bundled executable with the given arguments.
+here=$(dirname "$(readlink -f "$0")")
+exec "$here/usr/bin/tawara-desktop" "$@"

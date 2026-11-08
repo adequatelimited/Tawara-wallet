@@ -1,0 +1,215 @@
+# Licence, advisory, ban and source policy for this repository.
+#
+#   cargo deny check
+#
+# CI runs it on every push and pull request. It reaches the network for the
+# advisory database.
+#
+# The advisory, source, transport and KDF rules and the licences for the
+# library's graph match the wallet library's own `deny.toml`. This file adds
+# the interface's graph (iced, winit, wgpu and the rest) and the library
+# itself as a git dependency.
+#
+# It catches a policy violation introduced by a change: a dependency added, a
+# version moved, a feature switched on. An advisory against an unchanged
+# dependency is only seen when this runs, so it runs on every pull request.
+
+[graph]
+# Resolve every feature of this workspace's crates, so no feature can hide a
+# dependency. The library's features are fixed in the root manifest.
+all-features = true
+# `targets` is unset, so every target triplet is considered, including
+# Android and iOS.
+
+[advisories]
+# Each ignored advisory is a known maintenance notice, not a vulnerability,
+# shipped with a written reason. Both arrive with iced 0.14.1 and are
+# re-examined whenever the iced pin moves.
+ignore = [
+    # `paste` 1.0.15: archived by its author. A procedural macro, so it runs
+    # only at build time and puts no code in the executable. It is reached only
+    # through `metal` 0.32.0 -> `wgpu-hal` 27.0.4 -> `wgpu` 27.0.1 on Apple
+    # targets, and no compatible upgrade drops it.
+    { id = "RUSTSEC-2024-0436", reason = "paste is a compile-time proc macro reached only through metal 0.32.0 -> wgpu-hal 27.0.4 -> wgpu 27.0.1 under iced 0.14.1's renderer; it puts no code in the executable and no compatible upgrade exists" },
+    # `ttf-parser` 0.25.1: no further fixes planned. It parses only the
+    # bundled fonts and fonts installed on the user's system, never node data.
+    # It is reached through `fontdb` (iced's font database) and, on Linux,
+    # through `ab_glyph` -> `sctk-adwaita` -> `winit` for Wayland window
+    # decorations. Both callers are fixed by the iced pin.
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser parses only bundled and locally installed fonts, never node data; it is reached through fontdb under cosmic-text and through ab_glyph and sctk-adwaita under the fork's winit, and its callers are fixed by iced 0.14.1's pin" },
+]
+# Unmaintained crates anywhere in the graph, not only direct dependencies.
+unmaintained = "all"
+# Deny, not warn: `cargo deny check` exits 0 on a warning.
+yanked = "deny"
+
+[licenses]
+# Check dev-dependencies too; cargo-deny skips them by default.
+include-dev = true
+# An unmatched exception is an error, so the licence-text pin below fails
+# loudly when the text changes.
+unused-license-exception = "deny"
+# Permissive licences only. Each identifier is needed by some crate in the
+# graph. GPL in any version is absent because it conflicts with the Mochimo
+# licence's field-of-use restriction. `self_cell` (`Apache-2.0 OR
+# GPL-2.0-only`) and `r-efi` (`MIT OR Apache-2.0 OR LGPL-2.1-or-later`) are
+# admitted through their permissive arms only.
+allow = [
+    # The ecosystem's dual licence, and the bulk of this graph.
+    "MIT",
+    "Apache-2.0",
+    # `ring`, `rustls-webpki` and `untrusted`, under `mesh-https`. `ring`'s
+    # expression is `Apache-2.0 AND ISC`, an AND, so this entry is required.
+    "ISC",
+    # `subtle`, the route for the library's constant-time comparison of key
+    # material.
+    "BSD-3-Clause",
+    # `unicode-ident`, `(MIT OR Apache-2.0) AND Unicode-3.0`.
+    "Unicode-3.0",
+    # `webpki-roots`: Mozilla's root store as data, under a data licence. It
+    # enters with `mesh-https`, so it is in what ships.
+    "CDLA-Permissive-2.0",
+
+    # For the interface's graph. All four are permissive: notice preservation
+    # and a warranty disclaimer, no reciprocal clause.
+    #
+    # `arrayref`, under `tiny-skia`. BSD-2-Clause requires its notice in
+    # binary distributions; CI generates the notices file.
+    "BSD-2-Clause",
+    # `clipboard-win` and `error-code`, iced's clipboard on Windows.
+    "BSL-1.0",
+    # `hexf-parse`, under `naga`, wgpu's shader translator: a public-domain
+    # dedication with a fallback licence.
+    "CC0-1.0",
+    # `foldhash`, under wgpu (through `hashbrown`), and `slotmap`, under the
+    # text stack (`cosmic-text` -> `fontdb`) and wgpu-hal's GL backend
+    # (`glow`): the zlib licence.
+    "Zlib",
+]
+
+# The wallet's own licence.
+#
+# The library and this repository's crates are licensed under the Mochimo
+# Cryptocurrency Engine License Agreement, version 1.0, whose text is the
+# library's `LICENSE.md` byte for byte. It has no SPDX identifier, so
+# cargo-deny cannot read it from `license-file` and would report the crates
+# as unlicensed.
+#
+# `[licenses.private] ignore = true` would pass any unpublished crate without
+# reading its licence, so instead the licence is named as a `LicenseRef-` and
+# pinned to its text by hash. If the library's licence text changes when
+# `rev` moves, the crate is reported as unlicensed and its exception as
+# unmatched, and the check fails until the new text is reviewed.
+# The identifier is allowed for these crates only, as exceptions.
+[licenses.private]
+ignore = false
+
+[[licenses.clarify]]
+crate = "mochimo-crypto"
+expression = "LicenseRef-Mochimo-Engine-1.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0xaa8c1f8a }]
+
+[[licenses.clarify]]
+crate = "tawara-wallet-core"
+expression = "LicenseRef-Mochimo-Engine-1.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0xaa8c1f8a }]
+
+[[licenses.clarify]]
+crate = "tawara-app"
+expression = "LicenseRef-Mochimo-Engine-1.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0xaa8c1f8a }]
+
+[[licenses.clarify]]
+crate = "tawara-desktop"
+expression = "LicenseRef-Mochimo-Engine-1.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0xaa8c1f8a }]
+
+[[licenses.exceptions]]
+crate = "mochimo-crypto"
+allow = ["LicenseRef-Mochimo-Engine-1.0"]
+
+[[licenses.exceptions]]
+crate = "tawara-wallet-core"
+allow = ["LicenseRef-Mochimo-Engine-1.0"]
+
+[[licenses.exceptions]]
+crate = "tawara-app"
+allow = ["LicenseRef-Mochimo-Engine-1.0"]
+
+[[licenses.exceptions]]
+crate = "tawara-desktop"
+allow = ["LicenseRef-Mochimo-Engine-1.0"]
+
+[bans]
+# Duplicate versions are allowed. Most arrive through iced, winit or wgpu;
+# `windows-sys` 0.52/0.61 and `getrandom` 0.2 come from the library and
+# `ring`. None duplicates a trait the key handling depends on. The duplicate
+# that would matter is denied by name below.
+multiple-versions = "allow"
+# Deny `*` requirements on registry dependencies. `allow-wildcard-paths`
+# admits the workspace's path dependencies and the library's git line, whose
+# commit `rev` fixes.
+wildcards = "deny"
+allow-wildcard-paths = true
+
+# The library's hash crates use the `digest` 0.10 line. A crate on 0.11 would
+# silently link two incompatible `Digest` traits into one binary.
+[[bans.deny]]
+crate = "digest:>=0.11"
+reason = "the library's hash crates are pinned to the digest 0.10 line; see the sha3 comment in mochimo-crypto's Cargo.toml"
+
+# The transport's features. Feature unification would let any crate in the
+# graph switch these on in the library's `ureq`: a decompressor over
+# untrusted input, `serde`, or a second TLS stack in C.
+# `native-tls-no-default` is the same C TLS stack under another name. The
+# crates themselves are denied below too, whatever brings them in.
+[[bans.features]]
+crate = "ureq"
+deny = ["gzip", "brotli", "json", "cookies", "socks-proxy", "win-system-proxy", "native-tls", "native-tls-no-default"]
+
+[[bans.deny]]
+crate = "native-tls"
+reason = "mesh-https is defined as rustls; a platform TLS stack in C would move the TLS path without the feature that names it"
+
+[[bans.deny]]
+crate = "openssl-sys"
+reason = "mesh-https is defined as rustls; OpenSSL would put a second, C, TLS stack in the graph"
+
+# winit is the fork's vendored copy and `iced_winit` is its only direct user.
+# A crate depending on winit directly could bring in a second copy, so the
+# `wrappers` list admits `iced_winit` alone.
+[[bans.deny]]
+crate = "winit"
+wrappers = ["iced_winit"]
+reason = "winit is the fork's copy and is reached only through iced_winit; a direct dependency or a second copy breaks the one-copy rule"
+
+# The library's test-only feature. `raw-backend` exposes the primitive layer,
+# including the raw WOTS+ signer; with it off, the only path to a signature
+# is `Keystore::sign_spend` behind an `AdvanceReceipt`. This holds the
+# resolved graph to that, whatever would turn it on.
+[[bans.features]]
+crate = "mochimo-crypto"
+deny = ["raw-backend"]
+
+# The KDF's working memory is the library's own, zeroized on drop, only while
+# `alloc` and `password-hash` stay off.
+[[bans.features]]
+crate = "argon2"
+deny = ["alloc", "std", "password-hash"]
+
+# Request bodies serialise with sorted keys; `preserve_order` would break that.
+[[bans.features]]
+crate = "serde_json"
+deny = ["preserve_order"]
+
+[sources]
+# Every dependency is a crates.io release pinned by `Cargo.lock`, except the
+# wallet library and iced (with its vendored winit and dpi), each pinned by
+# full commit hash. Any other git source or registry is refused.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = [
+    "https://github.com/adequatelimited/mcm-rust-cli-windows",
+    "https://github.com/patricksmithlaravel/iced_mobile",
+]

@@ -1,0 +1,13 @@
+# One compiler for every build of this repository, local and CI.
+#
+# 1.98.0 matches the toolchain pinned by the wallet library this workspace
+# depends on, and is above both rust-version floors here: mochimo-crypto
+# (1.89, for `std::fs::File::try_lock`) and iced (1.88). Move this pin together
+# with the library's `rev`.
+#
+# `clippy` and `rustfmt` are listed because CI runs both and a minimal rustup
+# profile includes neither.
+
+[toolchain]
+channel = "1.98.0"
+components = ["clippy", "rustfmt"]
